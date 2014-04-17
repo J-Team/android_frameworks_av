@@ -1,7 +1,8 @@
 /*
- * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  * Not a Contribution.
+ * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1196,7 +1197,7 @@ void AwesomePlayer::createAudioPlayer_l()
             cachedDurationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US))) {
         flags |= AudioPlayer::ALLOW_DEEP_BUFFERING;
     }
-    if (isStreamingHTTP() || isWidevineContent()) {
+    if (isStreamingHTTP()) {
         flags |= AudioPlayer::IS_STREAMING;
     }
     if (mVideoSource != NULL) {
@@ -1755,10 +1756,6 @@ status_t AwesomePlayer::initAudioDecoder() {
     ATRACE_CALL();
 
     sp<MetaData> meta = mAudioTrack->getFormat();
-    sp<MetaData> vMeta;
-    if (mVideoTrack != NULL && mVideoSource != NULL) {
-        vMeta = mVideoTrack->getFormat();
-    }
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
@@ -1771,9 +1768,13 @@ status_t AwesomePlayer::initAudioDecoder() {
         streamType = mAudioSink->getAudioStreamType();
     }
 
-    mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL), vMeta,
-                                     (isStreamingHTTP() || isWidevineContent()),
-                                     streamType);
+    if (mDecryptHandle != NULL) {
+        ALOGV("Do not use offload playback for DRM contents");
+        mOffloadAudio = false;
+    } else {
+        mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL),
+                                     isStreamingHTTP(), streamType);
+    }
 
 #ifdef QCOM_DIRECTTRACK
     int32_t nchannels = 0;
@@ -1891,10 +1892,6 @@ status_t AwesomePlayer::initAudioDecoder() {
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         ALOGV("createAudioPlayer: bypass OMX (raw)");
         mAudioSource = mAudioTrack;
-        // For PCM offload fallback
-        if (mOffloadAudio) {
-            mOmxSource = mAudioSource;
-        }
     } else {
         // If offloading we still create a OMX decoder as a fall-back
         // but we don't start it
@@ -1914,22 +1911,9 @@ status_t AwesomePlayer::initAudioDecoder() {
         }
     }
 
-    int64_t durationUs = -1;
-    mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs);
-
-    if (!mOffloadAudio && mAudioSource != NULL) {
-        ALOGI("Could not offload audio decode, try pcm offload");
-        sp<MetaData> format = mAudioSource->getFormat();
-        if (durationUs >= 0) {
-            format->setInt64(kKeyDuration, durationUs);
-        }
-        mOffloadAudio = canOffloadStream(format, (mVideoSource != NULL), vMeta,
-                                    (isStreamingHTTP() || isWidevineContent()),
-                                     streamType);
-    }
-
     if (mAudioSource != NULL) {
-        if (durationUs >= 0) {
+        int64_t durationUs;
+        if (mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs)) {
             Mutex::Autolock autoLock(mMiscStateLock);
             if (mDurationUs < 0 || durationUs > mDurationUs) {
                 mDurationUs = durationUs;
@@ -3315,22 +3299,6 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
 
 bool AwesomePlayer::isStreamingHTTP() const {
     return mCachedSource != NULL || mWVMExtractor != NULL;
-}
-
-bool AwesomePlayer::isWidevineContent() const {
-    if (mWVMExtractor != NULL) {
-        return true;
-    }
-
-    sp<MetaData> fileMeta = mExtractor->getMetaData();
-    const char *containerMime;
-    if (fileMeta != NULL &&
-        fileMeta->findCString(kKeyMIMEType, &containerMime) &&
-        !strcasecmp(containerMime, "video/wvm")) {
-       return true;
-    }
-
-    return false;
 }
 
 status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
