@@ -45,8 +45,6 @@
 
 namespace android {
 
-MediaExtractor::Plugin MediaExtractor::sPlugin;
-
 sp<MetaData> MediaExtractor::getMetaData() {
     return new MetaData;
 }
@@ -96,13 +94,8 @@ sp<MediaExtractor> MediaExtractor::Create(
         }
     }
 
-    AString extractorName;
     MediaExtractor *ret = NULL;
-    if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
-            && sPlugin.create) {
-        ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
-        ret = sPlugin.create(source, mime, meta);
-    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
         ret = new MPEG4Extractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
@@ -127,8 +120,6 @@ sp<MediaExtractor> MediaExtractor::Create(
         ret = new AACExtractor(source, meta);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2PS)) {
         ret = new MPEG2PSExtractor(source);
-    } else if (sPlugin.create) {
-        ret = sPlugin.create(source, mime, meta);
     }
 
     if (ret != NULL) {
