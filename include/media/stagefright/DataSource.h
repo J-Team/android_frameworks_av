@@ -58,7 +58,6 @@ public:
 private:
     Mutex mSnifferMutex;
     List<SnifferFunc> mSniffers;
-    List<SnifferFunc> mExtraSniffers;
     List<SnifferFunc>::iterator extendedSnifferPosition;
 
     void registerSnifferPlugin();

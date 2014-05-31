@@ -58,15 +58,9 @@ sp<MediaExtractor> MediaExtractor::Create(
         const sp<DataSource> &source, const char *mime) {
     sp<AMessage> meta;
 
-    bool secondPass = false;
-
     String8 tmp;
-retry:
-    if (secondPass || mime == NULL) {
+    if (mime == NULL) {
         float confidence;
-        if (secondPass) {
-            confidence = 3.14f;
-        }
         if (!source->sniff(&tmp, &confidence, &meta)) {
             ALOGV("FAILED to autodetect media content.");
 
@@ -100,13 +94,8 @@ retry:
         }
     }
 
-    AString extractorName;
-    sp<MediaExtractor> ret = NULL;
-    if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
-            && sPlugin.create) {
-        ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
-        ret = sPlugin.create(source, mime, meta);
-    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
+    MediaExtractor *ret = NULL;
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
         ret = new MPEG4Extractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
@@ -142,19 +131,10 @@ retry:
     }
 
 #ifdef QCOM_HARDWARE
-    ret = ExtendedUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
-#endif
-
-    if (ret != NULL) {
-
-        if (!secondPass && ( ret->countTracks() == 0 ||
-                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2) ) ) {
-            secondPass = true;
-            goto retry;
-        }
-    }
-
+    return ExtendedUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
+#else
     return ret;
+#endif
 }
 
 }  // namespace android
