@@ -1772,6 +1772,7 @@ status_t AwesomePlayer::initAudioDecoder() {
         streamType = mAudioSink->getAudioStreamType();
     }
 
+#ifndef STE_HARDWARE
     if (mDecryptHandle != NULL) {
         ALOGV("Do not use offload playback for DRM contents");
         mOffloadAudio = false;
@@ -1779,6 +1780,9 @@ status_t AwesomePlayer::initAudioDecoder() {
         mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL),
                                      isStreamingHTTP(), streamType);
     }
+#else
+mOffloadAudio = false;
+#endif
 
 #ifdef QCOM_DIRECTTRACK
     int32_t nchannels = 0;
